@@ -1,0 +1,403 @@
+syntax = "proto3";
+
+package dbmux.v1;
+
+option go_package = "dbmux/gen/dbmux/v1;dbmuxv1";
+
+enum DBCategory {
+  DB_CATEGORY_UNSPECIFIED = 0;
+  DB_CATEGORY_POSTGRES = 1;  // PostgreSQL, Neon, Supabase
+  DB_CATEGORY_MYSQL = 2;     // MySQL, Scaleway MySQL, OVH MySQL
+  DB_CATEGORY_SQLITE = 3;    // LibSQL, Turso, SQLite
+  DB_CATEGORY_MONGO = 4;     // MongoDB document BSON CRUD
+  DB_CATEGORY_REDIS = 5;     // Redis, Valkey
+  DB_CATEGORY_VECTOR = 6;    // Qdrant, Pgvector
+}
+
+message TLSSettings {
+  bool enabled = 1;
+  string ca_cert_pem = 2;     // In-memory PEM CA certificate
+  string client_cert_pem = 3; // In-memory PEM client certificate (mTLS)
+  string client_key_pem = 4;  // In-memory PEM client key (mTLS)
+  bool insecure_skip_verify = 5;
+}
+
+message RegisterProviderRequest {
+  string provider_id = 1;          // Unique Provider ID (e.g., "tenant-42-postgres")
+  DBCategory category = 2;         // Engine Category
+  string dsn = 3;                  // Connection DSN / URI
+  TLSSettings tls_settings = 4;    // Optional TLS configuration
+  map<string, string> metadata = 5;// Metadata tags
+}
+
+message RegisterProviderResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListProvidersRequest {}
+
+message ProviderInfo {
+  string provider_id = 1;
+  DBCategory category = 2;
+  string dsn_masked = 3;
+  bool tls_enabled = 4;
+}
+
+message ListProvidersResponse {
+  repeated ProviderInfo providers = 1;
+  string db_flags = 2; // 6-char binary string e.g. "100100" -> Postgres, MySQL, SQLite, Redis, Mongo, Vector
+}
+
+// --- Engine-Specific PostgreSQL Messages ---
+message PostgresQueryRequest {
+  string provider_id = 1;
+  string query = 2;
+  repeated string params = 3; // Positional parameters ($1, $2)
+}
+
+message SQLRow {
+  map<string, string> values = 1; // Column name -> value
+}
+
+message PostgresQueryResponse {
+  repeated string columns = 1;
+  repeated SQLRow rows = 2;
+  int64 rows_returned = 3;
+}
+
+message PostgresExecRequest {
+  string provider_id = 1;
+  string query = 2;
+  repeated string params = 3;
+}
+
+message PostgresExecResponse {
+  int64 rows_affected = 1;
+}
+
+// --- Engine-Specific MySQL Messages ---
+message MySQLQueryRequest {
+  string provider_id = 1;
+  string query = 2;
+  repeated string params = 3; // Positional parameters (?, ?)
+}
+
+message MySQLQueryResponse {
+  repeated string columns = 1;
+  repeated SQLRow rows = 2;
+  int64 rows_returned = 3;
+}
+
+message MySQLExecRequest {
+  string provider_id = 1;
+  string query = 2;
+  repeated string params = 3;
+}
+
+message MySQLExecResponse {
+  int64 rows_affected = 1;
+  int64 last_insert_id = 2;
+}
+
+// --- Engine-Specific SQLite / LibSQL Messages ---
+message SQLiteQueryRequest {
+  string provider_id = 1;
+  string query = 2;
+  repeated string params = 3;
+}
+
+message SQLiteQueryResponse {
+  repeated string columns = 1;
+  repeated SQLRow rows = 2;
+  int64 rows_returned = 3;
+}
+
+message SQLiteExecRequest {
+  string provider_id = 1;
+  string query = 2;
+  repeated string params = 3;
+}
+
+message SQLiteExecResponse {
+  int64 rows_affected = 1;
+  int64 last_insert_id = 2;
+}
+
+// --- Key-Value (Redis / Valkey) Messages ---
+message KVGetRequest {
+  string provider_id = 1;
+  string key = 2;
+}
+
+message KVGetResponse {
+  string key = 1;
+  string value = 2;
+  bool found = 3;
+}
+
+message KVSetRequest {
+  string provider_id = 1;
+  string key = 2;
+  string value = 3;
+  int64 ttl_seconds = 4;
+}
+
+message KVSetResponse {
+  bool success = 1;
+}
+
+message KVDelRequest {
+  string provider_id = 1;
+  string key = 2;
+}
+
+message KVDelResponse {
+  bool success = 1;
+  int64 keys_deleted = 2;
+}
+
+// --- NoSQL (MongoDB) Messages ---
+message MongoFindRequest {
+  string provider_id = 1;
+  string database = 2;
+  string collection = 3;
+  string filter_json = 4;
+  int64 limit = 5;
+}
+
+message MongoFindResponse {
+  repeated string documents_json = 1;
+}
+
+message MongoInsertRequest {
+  string provider_id = 1;
+  string database = 2;
+  string collection = 3;
+  string document_json = 4;
+}
+
+message MongoInsertResponse {
+  bool success = 1;
+  string inserted_id = 2;
+}
+
+// --- Vector Messages (Qdrant / Pgvector) ---
+message VectorSearchRequest {
+  string provider_id = 1;
+  string collection_name = 2;
+  repeated float vector = 3;
+  uint64 limit = 4;
+  map<string, string> filter_payload = 5;
+}
+
+message VectorMatch {
+  string id = 1;
+  float score = 2;
+  map<string, string> payload = 3;
+}
+
+message VectorSearchResponse {
+  repeated VectorMatch matches = 1;
+}
+
+message VectorInsertRequest {
+  string provider_id = 1;
+  string collection_name = 2;
+  string point_id = 3;
+  repeated float vector = 4;
+  map<string, string> payload = 5;
+}
+
+message VectorInsertResponse {
+  bool success = 1;
+}
+
+// --- Modular Connect-Go Gateway Service Definitions ---
+
+service Registry {
+  rpc RegisterProvider(RegisterProviderRequest) returns (RegisterProviderResponse);
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
+}
+
+service Postgres {
+  rpc Query(PostgresQueryRequest) returns (PostgresQueryResponse);
+  rpc Exec(PostgresExecRequest) returns (PostgresExecResponse);
+}
+
+service MySQL {
+  rpc Query(MySQLQueryRequest) returns (MySQLQueryResponse);
+  rpc Exec(MySQLExecRequest) returns (MySQLExecResponse);
+}
+
+service SQLite {
+  rpc Query(SQLiteQueryRequest) returns (SQLiteQueryResponse);
+  rpc Exec(SQLiteExecRequest) returns (SQLiteExecResponse);
+}
+
+service KV {
+  rpc Get(KVGetRequest) returns (KVGetResponse);
+  rpc Set(KVSetRequest) returns (KVSetResponse);
+  rpc Del(KVDelRequest) returns (KVDelResponse);
+}
+
+service Mongo {
+  rpc Find(MongoFindRequest) returns (MongoFindResponse);
+  rpc Insert(MongoInsertRequest) returns (MongoInsertResponse);
+}
+
+service Vector {
+  rpc Search(VectorSearchRequest) returns (VectorSearchResponse);
+  rpc Insert(VectorInsertRequest) returns (VectorInsertResponse);
+}
+
+// --- State Management Messages ---
+message SaveStateRequest {
+  string store_name = 1;
+  string key = 2;
+  string value_json = 3;
+  int64 ttl_seconds = 4;
+}
+
+message SaveStateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetStateRequest {
+  string store_name = 1;
+  string key = 2;
+}
+
+message GetStateResponse {
+  bool found = 1;
+  string key = 2;
+  string value_json = 3;
+}
+
+message DeleteStateRequest {
+  string store_name = 1;
+  string key = 2;
+}
+
+message DeleteStateResponse {
+  bool success = 1;
+}
+
+// --- Distributed Cron Messages ---
+message RegisterCronRequest {
+  string cron_id = 1;
+  string schedule = 2; // e.g. "0 0 * * *" or "@every 1m"
+  string payload_json = 3;
+}
+
+message RegisterCronResponse {
+  bool success = 1;
+  string cron_id = 2;
+}
+
+message TriggerCronRequest {
+  string cron_id = 1;
+}
+
+message TriggerCronResponse {
+  bool executed = 1;
+  bool acquired_lock = 2;
+  string message = 3;
+}
+
+// --- Secrets Management Messages ---
+message GetSecretRequest {
+  string store_name = 1; // e.g. "env", "cloud_iam", "k8s"
+  string secret_key = 2; // e.g. "DBMUX_JWT_SECRET"
+}
+
+message GetSecretResponse {
+  bool found = 1;
+  string secret_key = 2;
+  string secret_value = 3;
+}
+
+message GetBulkSecretsRequest {
+  string store_name = 1; // e.g. "env", "cloud_iam", "k8s"
+}
+
+message GetBulkSecretsResponse {
+  map<string, string> secrets = 1;
+}
+
+// --- State, Cron, and Secret Services ---
+service State {
+  rpc SaveState(SaveStateRequest) returns (SaveStateResponse);
+  rpc GetState(GetStateRequest) returns (GetStateResponse);
+  rpc DeleteState(DeleteStateRequest) returns (DeleteStateResponse);
+}
+
+service Cron {
+  rpc RegisterCron(RegisterCronRequest) returns (RegisterCronResponse);
+  rpc TriggerCron(TriggerCronRequest) returns (TriggerCronResponse);
+}
+
+service Secret {
+  rpc GetSecret(GetSecretRequest) returns (GetSecretResponse);
+  rpc GetBulkSecrets(GetBulkSecretsRequest) returns (GetBulkSecretsResponse);
+}
+
+// --- Pub/Sub Messages ---
+message PublishRequest {
+  string topic   = 1;
+  string payload = 2;
+}
+
+message PublishResponse {
+  bool   delivered = 1;
+  int64  receivers = 2; // Number of active subscribers that received the message
+  string backend   = 3; // "redis" or "postgres"
+}
+
+message SubscribeRequest {
+  string topic           = 1;
+  int64  timeout_seconds = 2; // 0 = no timeout (stream until client disconnects)
+}
+
+message SubscribeEvent {
+  string topic          = 1;
+  string payload        = 2;
+  int64  timestamp_unix = 3;
+}
+
+// --- Queue Messages ---
+message EnqueueRequest {
+  string queue_name = 1;
+  string payload    = 2;
+}
+
+message EnqueueResponse {
+  bool   success = 1;
+  string backend = 2; // "redis" or "postgres"
+}
+
+message DequeueRequest {
+  string queue_name = 1;
+}
+
+message DequeueResponse {
+  bool   found   = 1;
+  string payload = 2;
+  string backend = 3; // "redis" or "postgres"
+}
+
+// --- Pub/Sub & Queue Services ---
+service PubSub {
+  rpc Publish(PublishRequest)     returns (PublishResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeEvent); // Server-streaming
+}
+
+service Queue {
+  rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+  rpc Dequeue(DequeueRequest) returns (DequeueResponse);
+}
+
+
+
+

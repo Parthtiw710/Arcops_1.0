@@ -1,0 +1,14 @@
+plan for dahborad 
+
+bento (2 cloumm in each row and 2 rows ) 1 for our small overview cards of grphs  2 for showing whcih db configured (6 lists ) , then api key (small box ) and for buckstrem list big grid 
+
+for the 1st chart composite chart use bunx --bun shadcn@latest add @bklit/composed-chart
+for the 2nd bar chart bunx --bun shadcn@latest add @bklit/bar-chart
+3rd line chart  bunx --bun shadcn@latest add @bklit/line-chart
+
+or for any other chart use bklit
+
+ bento bunx --bun shadcn@latest add @aceternity/bento-grid-demo
+
+ use image and try to find how i tried to make styled (like in dahsbaord line and area chart veritclyy putted and in hrizrntoal bar chart is added and they forming 90* roatatd anticlock T like and keep the bento of other 3 (api key, bukstream , db configed empty and use 98vw and 98vh for bento parent div
+ and anayle image properly ))

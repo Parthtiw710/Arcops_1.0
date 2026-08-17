@@ -1,0 +1,16 @@
+# Dependencies & Build Outputs
+node_modules/
+dist/
+/sdk/ts/node_modules/
+/sdk/ts/dist/
+
+# Binaries & Executables
+/bin/
+/server
+
+# Local Environment & Secrets
+.env
+.env.*
+
+# Generated Test Reports & Artifacts
+/test/reports/*.html

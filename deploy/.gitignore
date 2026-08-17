@@ -1,0 +1,5 @@
+# Ignore active local secrets file
+.env
+
+# Keep template
+!.env.example

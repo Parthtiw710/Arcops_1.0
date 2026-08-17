@@ -1,0 +1,148 @@
+# =============================================================================
+# BuckStream Complete E2E Test Environment (S3 Cloud + Local Disk PV)
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # 1. Cloud IAM & Metadata Emulator (Floci - AWS STS / GCP IMDS)
+  # ---------------------------------------------------------------------------
+  floci:
+    image: floci/floci:latest
+    container_name: buckstream-floci-iam
+    environment:
+      - SERVICES=sts,iam,s3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # 2. MinIO S3-Compatible Object Storage Container
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: buckstream-s3-storage
+    environment:
+      - MINIO_ROOT_USER=miniouser
+      - MINIO_ROOT_PASSWORD=miniopassword
+    command: server /data --console-address ":9001"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.50"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # 3. BuckStream Engine (Cloud S3 & IAM Mode)
+  # ---------------------------------------------------------------------------
+  buckstream-s3:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: buckstream-s3-engine
+    ports:
+      - "8080:8080"
+    environment:
+      - LOCAL_S3=false
+      - S3_COMPATIBLE_BY_TOKEN=true
+      - S3_COMPATIBLE_ENDPOINT=http://minio:9000
+      - S3_COMPATIBLE_REGION=us-east-1
+      - S3_COMPATIBLE_ACCESS_KEY=miniouser
+      - S3_COMPATIBLE_ACCESS_SECRET=miniopassword
+      - S3_BY_IAM=true
+      - AWS_METADATA_HOST=floci:4566
+      - GCP_METADATA_HOST=floci:4566
+      - BUCKET_NAME=buckstream-test
+      - DEPLOY_TOKEN=buckstream_deploy_secret_123
+      - UPLOAD_TOKEN=buckstream_upload_secret_123
+      - ALLOWED_DOMAINS=*
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.50"
+    depends_on:
+      floci:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 1s
+      timeout: 2s
+      retries: 5
+      start_period: 2s
+
+  # ---------------------------------------------------------------------------
+  # 4. BuckStream Engine (Local Persistent Disk PV Mode)
+  # ---------------------------------------------------------------------------
+  buckstream-local:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: buckstream-local-engine
+    ports:
+      - "8081:8080"
+    environment:
+      - LOCAL_S3=true
+      - LOCAL_S3_DIR=/mnt/local_s3
+      - BUCKET_NAME=buckstream-local-test
+      - DEPLOY_TOKEN=buckstream_deploy_secret_123
+      - UPLOAD_TOKEN=buckstream_upload_secret_123
+      - ALLOWED_DOMAINS=*
+    volumes:
+      - buckstream_local_pv:/mnt/local_s3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.50"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 1s
+      timeout: 2s
+      retries: 5
+      start_period: 2s
+
+  # ---------------------------------------------------------------------------
+  # 5. k6 Load Runner (Tests Cloud S3 + Local Disk PV simultaneously)
+  # ---------------------------------------------------------------------------
+  k6-stress:
+    image: grafana/k6:latest
+    container_name: buckstream-k6-runner
+    user: "0:0"
+    profiles: ["test"]
+    volumes:
+      - ./stream_stress.js:/scripts/stream_stress.js
+      - ./reports:/reports
+    command: run /scripts/stream_stress.js
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.00"
+    depends_on:
+      buckstream-s3:
+        condition: service_healthy
+      buckstream-local:
+        condition: service_healthy
+
+volumes:
+  minio_data:
+  buckstream_local_pv:

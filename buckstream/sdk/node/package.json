@@ -1,0 +1,27 @@
+{
+  "name": "buckstream-client",
+  "version": "1.0.1",
+  "description": "Isomorphic, zero-dependency storage broker SDK client for BuckStream",
+  "main": "buckstream.js",
+  "types": "buckstream.d.ts",
+  "type": "module",
+  "keywords": [
+    "buckstream",
+    "storage",
+    "broker",
+    "s3",
+    "gcs",
+    "sdk",
+    "client"
+  ],
+  "author": "Parth Tiwari",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Parthtiw710/buckstream.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Parthtiw710/buckstream/issues"
+  },
+  "homepage": "https://github.com/Parthtiw710/buckstream#readme"
+}

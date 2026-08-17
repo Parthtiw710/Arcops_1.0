@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BuckStream — Private Bucket Hosting</title>
+  <meta name="description"
+    content="Deploy static sites from private S3, GCS, or B2 buckets. Zero config. Instant wildcard subdomains." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="icon" type="image/x-icon" href="/public/favicon.ico" />
+  <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.13/dist/lenis.css" />
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #060608;
+      --surface: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e8e8f0;
+      --muted: #6b6b80;
+      --accent: #7c6dfa;
+      --accent2: #38bdf8;
+      --glow: rgba(124, 109, 250, 0.15);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Modern Custom Scrollbar Styles */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.24);
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.12) rgba(0, 0, 0, 0.25);
+    }
+
+    /* Background mesh */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(124, 109, 250, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      background: rgba(6, 6, 8, 0.7);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 80px;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.3rem;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .logo-img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+    }
+
+    .btn-nav {
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-nav:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding-top: 120px;
+      padding-bottom: 80px;
+    }
+
+    .hero-inner {
+      max-width: 720px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 100px;
+      border: 1px solid rgba(124, 109, 250, 0.3);
+      background: rgba(124, 109, 250, 0.08);
+      font-size: 0.75rem;
+      color: #a89ef7;
+      font-weight: 500;
+      margin-bottom: 28px;
+    }
+
+    .badge svg {
+      width: 12px;
+      height: 12px;
+      stroke: #a89ef7;
+    }
+
+    h1 {
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin-bottom: 20px;
+    }
+
+    h1 span {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1.1rem;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 520px;
+      margin-bottom: 36px;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      background: linear-gradient(135deg, var(--accent), #6355d4);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.88;
+      transform: translateY(-1px);
+    }
+
+    .btn-primary svg {
+      width: 16px;
+      height: 16px;
+      stroke: #fff;
+    }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-ghost:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: var(--surface);
+    }
+
+    .btn-ghost svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .meta-item svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--muted);
+    }
+
+    .meta-dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .hero-security-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: -6px;
+      margin-bottom: 24px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+
+    .hero-security-line svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--accent2);
+    }
+
+    /* FEATURES */
+    .features {
+      padding: 100px 0;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+    }
+
+    .section-sub {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 480px;
+      line-height: 1.6;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 56px;
+    }
+
+    .card {
+      padding: 24px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      transition: border-color 0.25s, background 0.25s, transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--glow), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .card:hover {
+      border-color: rgba(124, 109, 250, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(124, 109, 250, 0.2);
+      background: rgba(124, 109, 250, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .card-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--accent);
+    }
+
+    .card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 0.845rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* HOW IT WORKS */
+    .how {
+      padding: 100px 0;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0;
+      margin-top: 56px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: '';
+      position: absolute;
+      top: 20px;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), var(--border), transparent);
+    }
+
+    .step {
+      padding: 0 16px;
+      text-align: center;
+      position: relative;
+    }
+
+    .step-num {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #6355d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 auto 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    /* PROVIDERS */
+    .providers {
+      padding: 60px 0 100px;
+    }
+
+    .providers-label {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+      letter-spacing: 0.05em;
+    }
+
+    .provider-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .provider-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--muted);
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .provider-chip:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text);
+    }
+
+    .provider-chip svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+    }
+
+    /* CTA */
+    .cta-section {
+      padding: 80px 0 100px;
+    }
+
+    .cta-box {
+      border-radius: 20px;
+      border: 1px solid rgba(124, 109, 250, 0.25);
+      background: linear-gradient(135deg, rgba(124, 109, 250, 0.08) 0%, rgba(56, 189, 248, 0.04) 100%);
+      padding: 64px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 400px;
+      height: 200px;
+      background: radial-gradient(ellipse, rgba(124, 109, 250, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-box h2 {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+    }
+
+    .cta-box p {
+      font-size: 1rem;
+      color: var(--muted);
+      margin-bottom: 32px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* CODE SNIPPET */
+    .code-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #a89ef7;
+      margin-top: 28px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .code-block:hover {
+      border-color: rgba(124, 109, 250, 0.4);
+    }
+
+    .code-block svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--muted);
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 0;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .footer-inner a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-inner a:hover {
+      color: var(--text);
+    }
+
+    /* STORAGE BROKER */
+    .broker {
+      padding: 100px 0;
+    }
+
+    .broker-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-top: 56px;
+    }
+
+    .broker-panel {
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .broker-panel-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .broker-panel-head svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--accent);
+    }
+
+    .broker-panel-head span {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .broker-panel-head .badge-sm {
+      margin-left: auto;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(124, 109, 250, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(124, 109, 250, 0.2);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .broker-routes {
+      padding: 14px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .route {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .route-badge {
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+      margin-top: 1px;
+    }
+
+    .route-badge.green {
+      background: rgba(52, 211, 153, 0.12);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+
+    .route-badge.blue {
+      background: rgba(56, 189, 248, 0.12);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .route-badge.purple {
+      background: rgba(124, 109, 250, 0.12);
+      color: #a89ef7;
+      border: 1px solid rgba(124, 109, 250, 0.2);
+    }
+
+    .route-info {
+      flex: 1;
+    }
+
+    .route-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .route-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .route-arrow {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .route-arrow svg {
+      width: 11px;
+      height: 11px;
+      stroke: var(--muted);
+    }
+
+    .route-sub {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      background: rgba(0, 0, 0, 0.2);
+      margin-top: 6px;
+    }
+
+    .route-sub-badge {
+      padding: 1px 7px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+      margin-top: 1px;
+    }
+
+    .route-sub-badge.teal {
+      background: rgba(20, 184, 166, 0.12);
+      color: #2dd4bf;
+      border: 1px solid rgba(20, 184, 166, 0.2);
+    }
+
+    .route-sub-badge.orange {
+      background: rgba(251, 146, 60, 0.12);
+      color: #fb923c;
+      border: 1px solid rgba(251, 146, 60, 0.2);
+    }
+
+    .route-sub p {
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 720px) {
+      .broker-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* CICD CARD */
+    .cicd-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 40px;
+      margin-top: 48px;
+      padding: 32px 36px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .cicd-left {
+      flex: 1;
+    }
+
+    .cicd-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      min-width: 200px;
+      padding-top: 8px;
+    }
+
+    .cicd-file {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    .cicd-file svg {
+      width: 15px;
+      height: 15px;
+      stroke: var(--accent);
+    }
+
+    .cicd-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .cicd-secrets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .secret-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.2);
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--muted);
+    }
+
+    .secret-chip svg {
+      width: 11px;
+      height: 11px;
+      stroke: var(--muted);
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      background: linear-gradient(135deg, var(--accent), #6355d4);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-download:hover {
+      opacity: 0.85;
+      transform: translateY(-1px);
+    }
+
+    .btn-download svg {
+      width: 15px;
+      height: 15px;
+      stroke: #fff;
+    }
+
+    .cicd-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.5;
+      max-width: 180px;
+    }
+
+    @media (max-width: 700px) {
+      .cicd-card {
+        flex-direction: column;
+        padding: 24px;
+      }
+
+      .cicd-right {
+        width: 100%;
+      }
+
+      .btn-download {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .nav-links {
+        display: none;
+      }
+
+      .cta-box {
+        padding: 40px 24px;
+      }
+
+      .hero-meta {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="logo">
+        <img src="/public/favicon.ico" class="logo-img" alt="BuckStream Logo" />
+        BuckStream by ArcOps
+      </a>
+      <div class="nav-links">
+        <a href="https://github.com/Parthtiw710/buckstream" target="_blank">GitHub</a>
+        <a href="https://github.com/Parthtiw710/buckstream/blob/main/README.md" class="btn-nav">Docs</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div class="badge">
+        <i data-lucide="layers"></i>
+        Private cloud storage broker
+      </div>
+      <h1>Your private bucket,<br /><span>publicly brokered.</span></h1>
+      <div class="hero-security-line">
+        <i data-lucide="shield-check"></i>
+        <span>Secured via Token Authorization &amp; Domain Filtering</span>
+      </div>
+      <p class="hero-sub">
+        BuckStream is a storage broker that proxies uploads, streams downloads,
+        and hosts static sites — all from your private S3, GCS, R2, or B2 bucket.
+        No public ACLs. No vendor lock-in. One 10 MB binary.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/Parthtiw710/buckstream" target="_blank" class="btn-primary">
+          <i data-lucide="github"></i> Get started
+        </a>
+        <a href="#how" class="btn-ghost">
+          <i data-lucide="play-circle"></i> See how it works
+        </a>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-item"><i data-lucide="lock"></i> Bucket stays private</div>
+        <div class="meta-dot"></div>
+        <div class="meta-item"><i data-lucide="upload-cloud"></i> Smart upload routing</div>
+        <div class="meta-dot"></div>
+        <div class="meta-item"><i data-lucide="download-cloud"></i> Streaming downloads</div>
+        <div class="meta-dot"></div>
+        <div class="meta-item"><i data-lucide="globe"></i> Wildcard subdomains</div>
+        <div class="meta-dot"></div>
+        <div class="meta-item"><i data-lucide="cpu"></i> RAM-speed serving</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="wrap">
+      <div class="section-label">Features</div>
+      <div class="section-title">Everything you need,<br />nothing you don't.</div>
+
+      <div class="features-grid">
+        <div class="card">
+          <div class="card-icon"><i data-lucide="shield"></i></div>
+          <h3>Private by default</h3>
+          <p>Your storage bucket never needs to be public. The broker is the only entity with storage credentials.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><i data-lucide="globe-2"></i></div>
+          <h3>Wildcard subdomains</h3>
+          <p>Every deployed site gets its own subdomain automatically. <code
+              style="font-family:monospace;font-size:0.78rem;color:#a89ef7">site.yourdomain.com</code> — zero DNS config
+            per site.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><i data-lucide="zap"></i></div>
+          <h3>RAM-speed serving</h3>
+          <p>ZIPs are unzipped into memory on first load. Every subsequent request is served in under 1 millisecond.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><i data-lucide="refresh-cw"></i></div>
+          <h3>Zero-downtime updates</h3>
+          <p>Deployments hot-swap the in-memory cache using Go's RWMutex. Old site stays live until the new one is
+            ready.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><i data-lucide="cloud"></i></div>
+          <h3>Multi-cloud storage</h3>
+          <p>Works with AWS S3, Google Cloud Storage, Cloudflare R2, Backblaze B2, and any S3-compatible provider.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><i data-lucide="key"></i></div>
+          <h3>Keyless IAM auth</h3>
+          <p>On AWS or GCP, use IAM roles and Application Default Credentials. No static secrets stored anywhere.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STORAGE BROKER -->
+  <section class="broker" id="storage">
+    <div class="wrap">
+      <div class="section-label">Storage Broker</div>
+      <div class="section-title">Smart upload &amp; download routing.</div>
+      <p class="section-sub">BuckStream intelligently routes uploads and downloads — small files stream through the
+        broker, large files go direct. Your bucket stays private either way.</p>
+
+      <div class="broker-grid">
+
+        <!-- UPLOAD -->
+        <div class="broker-panel">
+          <div class="broker-panel-head">
+            <i data-lucide="upload-cloud"></i>
+            <span>Upload</span>
+            <div class="badge-sm">POST /api/upload*</div>
+          </div>
+          <div class="broker-routes">
+            <div class="route">
+              <div class="route-badge green">≤ 5 MB</div>
+              <div class="route-info">
+                <div class="route-path">POST /api/upload/proxy</div>
+                <div class="route-desc">File streams directly to the broker, which writes it into the private bucket.
+                  Auth token verified on every request.</div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="route-badge blue">&gt; 5 MB</div>
+              <div class="route-info">
+                <div class="route-path">POST /api/upload-intent → Pre-signed PUT URL</div>
+                <div class="route-desc">Client requests a signed URL from the broker. File is uploaded directly to
+                  S3/GCS — zero bandwidth on the broker.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- OBJECT OPS -->
+        <div class="broker-panel">
+          <div class="broker-panel-head">
+            <i data-lucide="database"></i>
+            <span>Object Operations</span>
+            <div class="badge-sm">GET · DELETE /api/*</div>
+          </div>
+          <div class="broker-routes">
+            <div class="route">
+              <div class="route-badge purple">Download</div>
+              <div class="route-info">
+                <div class="route-path">GET /api/download/:key</div>
+                <div class="route-desc">File is streamed from the private bucket through the broker to the client.
+                  Content-Type and ETag headers set automatically.</div>
+                <div class="route-arrow"><i data-lucide="arrow-right"></i> Bucket → Broker → Client</div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="route-badge blue">List</div>
+              <div class="route-info">
+                <div class="route-path">GET /api/list</div>
+                <div class="route-desc">Returns all object keys under the <code
+                    style="font-family:monospace;font-size:0.75rem;color:#a89ef7">uploads/</code> prefix. Auth token
+                  required.</div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="route-badge"
+                style="background:rgba(251,146,60,0.12);color:#fb923c;border:1px solid rgba(251,146,60,0.2)">Delete
+              </div>
+              <div class="route-info">
+                <div class="route-path">DELETE /api/delete?key=uploads/file</div>
+                <div class="route-desc">Permanently removes the object from the bucket and frees memory cache. Auth
+                  token required.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DEPLOY -->
+        <div class="broker-panel">
+          <div class="broker-panel-head">
+            <i data-lucide="globe"></i>
+            <span>Deploy</span>
+            <div class="badge-sm">POST · GET · DELETE /api/deploy*</div>
+          </div>
+          <div class="broker-routes">
+            <div class="route">
+              <div class="route-badge green">Deploy</div>
+              <div class="route-info">
+                <div class="route-path">POST /api/deploy</div>
+                <div class="route-desc">Upload a ZIP archive to deploy a static site. Unzipped into RAM and served
+                  instantly at its subdomain.</div>
+                <div class="route-arrow"><i data-lucide="arrow-right"></i> ZIP → RAM cache → site.yourdomain.com</div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="route-badge blue">List</div>
+              <div class="route-info">
+                <div class="route-path">GET /api/deploy/list</div>
+                <div class="route-desc">Returns all deployed site names. Auth token required.</div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="route-badge"
+                style="background:rgba(251,146,60,0.12);color:#fb923c;border:1px solid rgba(251,146,60,0.2)">Delete
+              </div>
+              <div class="route-info">
+                <div class="route-path">DELETE /api/deploy/delete?name=site</div>
+                <div class="route-desc">Removes site ZIP from the bucket and evicts it from the RAM cache immediately.
+                  Auth token required.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- CI/CD SETUP -->
+  <section class="how" id="how">
+    <div class="wrap">
+      <div class="section-label">CI / CD</div>
+      <div class="section-title">Push to deploy.</div>
+      <p class="section-sub">Add one workflow file to your static site repo. Every push to <code
+          style="font-family:monospace;font-size:0.85rem;color:#a89ef7">main</code> builds, zips, and deploys
+        automatically.</p>
+
+      <div class="cicd-card">
+        <div class="cicd-left">
+          <div class="cicd-file">
+            <i data-lucide="file-code-2"></i>
+            <span>.github/workflows/deploy.yml</span>
+          </div>
+          <p class="cicd-desc">Drop this workflow into your static site's repository. Set three GitHub secrets and
+            you're done — every push to <strong>main</strong> deploys your site to your BuckStream broker and goes live
+            instantly at <code style="font-family:monospace;font-size:0.8rem;color:#a89ef7">name.yourdomain.com</code>.
+          </p>
+          <div class="cicd-secrets">
+            <div class="secret-chip"><i data-lucide="link"></i> BUCKSTREAM_BROKER_URL</div>
+            <div class="secret-chip"><i data-lucide="key"></i> BUCKSTREAM_DEPLOY_TOKEN</div>
+            <div class="secret-chip"><i data-lucide="tag"></i> BUCKSTREAM_SITE_NAME</div>
+          </div>
+        </div>
+        <div class="cicd-right">
+          <button class="btn-download" onclick="downloadWorkflow()">
+            <i data-lucide="download"></i>
+            Download deploy.yml
+          </button>
+          <p class="cicd-hint">Works with Vite, Next.js, Nuxt, SvelteKit, and any static build tool.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROVIDERS -->
+  <section class="providers">
+    <div class="wrap">
+      <p class="providers-label">WORKS WITH YOUR STORAGE PROVIDER</p>
+      <div class="provider-row">
+        <div class="provider-chip"><i data-lucide="database"></i> AWS S3</div>
+        <div class="provider-chip"><i data-lucide="cloud"></i> Google Cloud Storage</div>
+        <div class="provider-chip"><i data-lucide="server"></i> Cloudflare R2</div>
+        <div class="provider-chip"><i data-lucide="hard-drive"></i> Backblaze B2</div>
+        <div class="provider-chip"><i data-lucide="box"></i> Wasabi</div>
+        <div class="provider-chip"><i data-lucide="layers"></i> Any S3-compatible</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SDK -->
+  <section style="padding:80px 0 0">
+    <div class="wrap">
+      <div class="section-label">Client SDKs</div>
+      <div class="section-title">One install. Four methods.</div>
+      <p class="section-sub" style="margin-bottom:32px">Available for Node.js / browser (JS &amp; TS) and Python. Full
+        TypeScript types included.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+        <!-- JS/TS box -->
+        <div class="broker-panel">
+          <div class="broker-panel-head">
+            <i data-lucide="code-2"></i>
+            <span>JavaScript &amp; TypeScript</span>
+            <div class="badge-sm">npm</div>
+          </div>
+          <div style="padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+            <div class="code-block" style="display:flex;margin-top:0;width:100%;box-sizing:border-box"
+              onclick="copyCmd(this)">
+              npm install buckstream-client
+              <i data-lucide="copy"></i>
+            </div>
+            <div style="position:relative">
+              <button onclick="copyPre(this)"
+                style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--muted);transition:background 0.2s"
+                onmouseover="this.style.background='rgba(255,255,255,0.12)'"
+                onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+                <i data-lucide="copy" style="width:12px;height:12px;stroke:currentColor"></i> Copy
+              </button>
+              <pre
+                style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:#a89ef7;line-height:1.7;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;padding:16px;overflow-x:auto;margin:0"><span style="color:var(--muted)">import</span> { BuckStreamClient } <span style="color:var(--muted)">from</span> <span style="color:#34d399">'buckstream-client'</span>;
+<span style="color:var(--muted)">const</span> client = <span style="color:var(--muted)">new</span> BuckStreamClient(<span style="color:#34d399">'https://broker.yourdomain.com'</span>, <span style="color:#34d399">'your-token'</span>);
+
+<span style="color:var(--muted)">await</span> client.<span style="color:#38bdf8">Upload</span>(file, <span style="color:#34d399">'photo.jpg'</span>, <span style="color:#34d399">'image/jpeg'</span>);
+<span style="color:var(--muted)">await</span> client.<span style="color:#38bdf8">List</span>();
+<span style="color:var(--muted)">await</span> client.<span style="color:#38bdf8">Download</span>(<span style="color:#34d399">'uploads/photo.jpg'</span>);
+<span style="color:var(--muted)">await</span> client.<span style="color:#38bdf8">Delete</span>(<span style="color:#34d399">'uploads/photo.jpg'</span>);</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Python box -->
+        <div class="broker-panel">
+          <div class="broker-panel-head">
+            <i data-lucide="terminal"></i>
+            <span>Python</span>
+            <div class="badge-sm">pip</div>
+          </div>
+          <div style="padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+            <div class="code-block" style="display:flex;margin-top:0;width:100%;box-sizing:border-box"
+              onclick="copyCmd(this)">
+              pip install buckstream-client
+              <i data-lucide="copy"></i>
+            </div>
+            <div style="position:relative">
+              <button onclick="copyPre(this)"
+                style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--muted);transition:background 0.2s"
+                onmouseover="this.style.background='rgba(255,255,255,0.12)'"
+                onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+                <i data-lucide="copy" style="width:12px;height:12px;stroke:currentColor"></i> Copy
+              </button>
+              <pre
+                style="font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:#a89ef7;line-height:1.7;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;padding:16px;overflow-x:auto;margin:0"><span style="color:var(--muted)">from</span> buckstream <span style="color:var(--muted)">import</span> BuckStreamClient
+client = BuckStreamClient(<span style="color:#34d399">'https://broker.yourdomain.com'</span>, <span style="color:#34d399">'your-token'</span>)
+
+client.<span style="color:#38bdf8">Upload</span>(<span style="color:#34d399">'photo.jpg'</span>, <span style="color:#34d399">'uploads/photo.jpg'</span>, <span style="color:#34d399">'image/jpeg'</span>)
+client.<span style="color:#38bdf8">List</span>()
+client.<span style="color:#38bdf8">Download</span>(<span style="color:#34d399">'uploads/photo.jpg'</span>)
+client.<span style="color:#38bdf8">Delete</span>(<span style="color:#34d399">'uploads/photo.jpg'</span>)</pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="wrap">
+      <div class="cta-box">
+        <h2>Start hosting in minutes.</h2>
+        <p>A single 10 MB binary. Runs anywhere. No vendor lock-in.</p>
+        <div class="cta-actions">
+          <a href="https://github.com/Parthtiw710/buckstream" target="_blank" class="btn-primary">
+            <i data-lucide="github"></i> View on GitHub
+          </a>
+          <a href="https://github.com/Parthtiw710/buckstream/blob/main/README.md" class="btn-ghost">
+            <i data-lucide="book-open"></i> Documentation
+          </a>
+        </div>
+        <div class="code-block" onclick="copyCmd(this)">
+          curl -X POST https://broker.yourdomain.com/api/deploy -F "file=@dist.zip"
+          <i data-lucide="copy"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <span>© 2026 ArcOps — Agentic Multi-Cloud Intelligence</span>
+      <div style="display:flex;gap:16px">
+        <a href="https://github.com/Parthtiw710/buckstream" target="_blank">GitHub</a>
+        <a href="https://github.com/Parthtiw710/buckstream/blob/main/README.md">Docs</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Initialize Lenis smooth scroll
+    const lenis = new Lenis({
+      duration: 1.6,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+      smoothTouch: false,
+      wheelMultiplier: 0.85
+    });
+
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+    requestAnimationFrame(raf);
+
+    lucide.createIcons();
+
+    function copyPre(btn) {
+      const pre = btn.nextElementSibling;
+      navigator.clipboard.writeText(pre.innerText).then(() => {
+        const icon = btn.querySelector('svg');
+        icon.setAttribute('data-lucide', 'check');
+        btn.childNodes[btn.childNodes.length - 1].textContent = ' Copied!';
+        lucide.createIcons();
+        setTimeout(() => {
+          icon.setAttribute('data-lucide', 'copy');
+          btn.childNodes[btn.childNodes.length - 1].textContent = ' Copy';
+          lucide.createIcons();
+        }, 1800);
+      });
+    }
+
+    function copyCmd(el) {
+      const text = el.textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        const icon = el.querySelector('svg');
+        icon.setAttribute('data-lucide', 'check');
+        lucide.createIcons();
+        setTimeout(() => {
+          icon.setAttribute('data-lucide', 'copy');
+          lucide.createIcons();
+        }, 1800);
+      });
+    }
+
+    function downloadWorkflow() {
+      const S = '${{';
+      const E = '}}';
+      const siteName = S + ' secrets.BUCKSTREAM_SITE_NAME ' + E;
+      const brokerUrl = S + ' secrets.BUCKSTREAM_BROKER_URL ' + E;
+      const token = S + ' secrets.BUCKSTREAM_DEPLOY_TOKEN ' + E;
+
+      const yaml =
+        `name: Deploy to BuckStream
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build & Deploy Static Site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+        # Change 'build' to your build script if different
+
+      - name: Zip the build output
+        run: |
+          cd dist
+          zip -r ../${siteName}.zip .
+          cd ..
+
+      - name: Deploy ZIP to BuckStream broker
+        run: |
+          curl -f -X POST "${brokerUrl}/api/deploy" \\
+            -H "Authorization: Bearer ${token}" \\
+            -F "file=@${siteName}.zip"
+`;
+      const blob = new Blob([yaml], { type: 'text/yaml' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'deploy.yml';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // Subtle card glow follow mouse
+    document.querySelectorAll('.card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        card.style.setProperty('--mx', x + '%');
+        card.style.setProperty('--my', y + '%');
+      });
+    });
+  </script>
+</body>
+
+</html>

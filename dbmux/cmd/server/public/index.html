@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DBMUX - Modern Database Multiplexer Architecture</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(18, 26, 43, 0.7);
+      --bg-card-hover: rgba(28, 39, 64, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(56, 189, 248, 0.4);
+      
+      --accent-cyan: #38bdf8;
+      --accent-purple: #a855f7;
+      --accent-green: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-rose: #f43f5e;
+
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 45%);
+    }
+
+    /* Header Navbar */
+    header {
+      height: 60px;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(9, 13, 22, 0.8);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      font-size: 1rem;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn {
+      padding: 0.45rem 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), #0284c7);
+      border: none;
+      color: #000;
+      font-weight: 600;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    /* Main Container Grid (100vh Layout) */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 1.25rem;
+      padding: 1.25rem;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    /* Left Pane: Interactive Wireframe Diagram */
+    .diagram-pane {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      backdrop-filter: blur(16px);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1.5rem;
+      overflow: hidden;
+    }
+
+    .diagram-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .diagram-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Canvas / Flow Area */
+    .flow-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 140px 1fr;
+      align-items: center;
+      gap: 1rem;
+      position: relative;
+    }
+
+    /* Architectural Boxes matching user sketch */
+    .arch-box {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1.5px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .arch-box:hover, .arch-box.active {
+      border-style: solid;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.15);
+    }
+
+    .arch-box-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .arch-box-subtitle {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--accent-purple);
+      background: rgba(168, 85, 247, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    /* DB Driver Nodes List inside box */
+    .db-nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.6rem;
+    }
+
+    .db-node {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .db-node:hover, .db-node.selected {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.12);
+      transform: scale(1.02);
+    }
+
+    .db-icon {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .node-mysql { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+    .node-postgres { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+    .node-mongo { background: #34d399; box-shadow: 0 0 8px #34d399; }
+    .node-redis { background: #f43f5e; box-shadow: 0 0 8px #f43f5e; }
+    .node-vector { background: #a855f7; box-shadow: 0 0 8px #a855f7; }
+
+    .db-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .db-tag {
+      margin-left: auto;
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+
+    /* Middle HTTP/2 Pipe Visualizer */
+    .http2-pipe-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: 100%;
+    }
+
+    .pipe-line {
+      width: 100%;
+      height: 60px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 30px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+    }
+
+    .pipe-label {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      z-index: 2;
+      background: rgba(9, 13, 22, 0.8);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+    }
+
+    .stream-particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: streamFlow 2.5s infinite linear;
+    }
+
+    @keyframes streamFlow {
+      0% { left: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+
+    .pipe-annotation {
+      margin-top: 0.75rem;
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      line-height: 1.3;
+      max-width: 140px;
+    }
+
+    /* Bottom Info Cards / Micro Specs */
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .metric-card {
+      background: rgba(15, 23, 42, 0.6);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .metric-title {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 0.2rem;
+      font-family: var(--font-mono);
+    }
+
+    /* Right Pane: Detail Inspection Panel */
+    .inspector-pane {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      backdrop-filter: blur(16px);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      overflow: hidden;
+      justify-content: space-between;
+    }
+
+    .inspector-header {
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .inspector-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .inspector-card-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .inspector-card-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .code-snippet {
+      background: #050810;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--accent-green);
+      line-height: 1.4;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+
+    /* Protocol Comparison Table */
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .comparison-table th, .comparison-table td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .comparison-table th {
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    .tag-good { color: var(--accent-green); font-weight: 600; }
+    .tag-bad { color: var(--accent-rose); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">M</div>
+      <div>
+        <div class="brand-title">DBMUX Architecture</div>
+      </div>
+      <span class="badge">HTTP/2 ConnectRPC Proxy</span>
+    </div>
+    <div class="header-actions">
+    </div>
+  </header>
+
+  <!-- Main 100vh Grid -->
+  <main>
+    
+    <!-- Left Interactive Architecture Wireframe -->
+    <div class="diagram-pane">
+      <div class="diagram-header">
+        <span class="diagram-title">System Architecture & Connection Multiplexing</span>
+        <span style="font-size: 0.75rem; color: var(--accent-cyan); font-family: var(--font-mono);">Click any box/node to inspect</span>
+      </div>
+
+      <!-- Diagram Flow Container (Matches User Sketch) -->
+      <div class="flow-container">
+
+        <!-- Client Box (Frontend / Backend) -->
+        <div class="arch-box" id="box-client">
+          <div class="arch-box-title">
+            <span>Client App</span>
+            <span class="arch-box-subtitle">Frontend / Microservice</span>
+          </div>
+
+          <div class="db-nodes-grid">
+            <div class="db-node" data-target="mysql">
+              <div class="db-icon node-mysql"></div>
+              <span class="db-label">MySQL</span>
+              <span class="db-tag">RPC</span>
+            </div>
+            <div class="db-node" data-target="postgres">
+              <div class="db-icon node-postgres"></div>
+              <span class="db-label">Postgres</span>
+              <span class="db-tag">RPC</span>
+            </div>
+            <div class="db-node" data-target="mongo">
+              <div class="db-icon node-mongo"></div>
+              <span class="db-label">MongoDB</span>
+              <span class="db-tag">RPC</span>
+            </div>
+            <div class="db-node" data-target="redis">
+              <div class="db-icon node-redis"></div>
+              <span class="db-label">Redis</span>
+              <span class="db-tag">RPC</span>
+            </div>
+            <div class="db-node" style="grid-column: span 2;" data-target="vector">
+              <div class="db-icon node-vector"></div>
+              <span class="db-label">Vector DB</span>
+              <span class="db-tag">gRPC / Qdrant</span>
+            </div>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.3;">
+            💡 Client uses <b>Lightweight ConnectRPC SDK</b> (or <b>gRPC-web</b> for browser). Zero native DB driver dependencies.
+          </div>
+        </div>
+
+        <!-- Middle Pipe: HTTP/2 Connection Stream -->
+        <div class="http2-pipe-container" id="box-http2">
+          <div class="pipe-line">
+            <span class="pipe-label">HTTP/2.0</span>
+            <div class="stream-particle" style="background: #3b82f6; animation-delay: 0s; top: 15px;"></div>
+            <div class="stream-particle" style="background: #38bdf8; animation-delay: 0.5s; top: 25px;"></div>
+            <div class="stream-particle" style="background: #34d399; animation-delay: 1.0s; top: 35px;"></div>
+            <div class="stream-particle" style="background: #f43f5e; animation-delay: 1.5s; top: 20px;"></div>
+            <div class="stream-particle" style="background: #a855f7; animation-delay: 2.0s; top: 40px;"></div>
+          </div>
+          <div class="pipe-annotation">
+            <b>Single TCP Socket</b><br>
+            Per-query goroutines over multiplexed HTTP/2 streams
+          </div>
+        </div>
+
+        <!-- Backend Box (DBMUX Proxy) -->
+        <div class="arch-box" id="box-backend">
+          <div class="arch-box-title">
+            <span>DBMUX Backend</span>
+            <span class="arch-box-subtitle" style="color: var(--accent-green); background: rgba(52, 211, 153, 0.1);">Go Gateway</span>
+          </div>
+
+          <div class="db-nodes-grid">
+            <div class="db-node" data-target="mysql">
+              <div class="db-icon node-mysql"></div>
+              <span class="db-label">MySQL Pool</span>
+            </div>
+            <div class="db-node" data-target="postgres">
+              <div class="db-icon node-postgres"></div>
+              <span class="db-label">Postgres Pool</span>
+            </div>
+            <div class="db-node" data-target="mongo">
+              <div class="db-icon node-mongo"></div>
+              <span class="db-label">Mongo Driver</span>
+            </div>
+            <div class="db-node" data-target="redis">
+              <div class="db-icon node-redis"></div>
+              <span class="db-label">Redis Client</span>
+            </div>
+            <div class="db-node" style="grid-column: span 2;" data-target="vector">
+              <div class="db-icon node-vector"></div>
+              <span class="db-label">Vector Client</span>
+            </div>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.3;">
+            🛡️ Manages <b>isolated connection pools</b> per DB engine. Failure in Postgres does NOT crash Redis or Mongo.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Metrics Bar -->
+      <div class="metrics-bar">
+        <div class="metric-card">
+          <div class="metric-title">TCP Connections</div>
+          <div class="metric-value" style="color: var(--accent-cyan);">1 Socket</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Driver Pools</div>
+          <div class="metric-value" style="color: var(--accent-purple);">Pool / DB Type</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Query Execution</div>
+          <div class="metric-value" style="color: var(--accent-green);">Per-Query Goroutine</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Concurrency Safety</div>
+          <div class="metric-value" style="color: var(--accent-amber);">Mutex + WAL Mode</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Detailed Inspection Pane -->
+    <div class="inspector-pane">
+      <div class="inspector-header">
+        <span>🔍 Inspector & Mechanics</span>
+      </div>
+
+      <div class="inspector-card" id="detail-card">
+        <div class="inspector-card-title">✨ How DBMUX Multiplexing Works</div>
+        <div class="inspector-card-desc">
+          Click on any element in the wireframe diagram on the left to inspect its protocol mechanics, connection lifecycle, and streaming behavior.
+        </div>
+      </div>
+
+      <div class="inspector-card">
+        <div class="inspector-card-title">⚡ Key Architectural Mechanics</div>
+        <ul style="font-size: 0.78rem; color: var(--text-muted); padding-left: 1.2rem; line-height: 1.6;">
+          <li><b>Single Socket Multiplexing</b>: All RPC traffic flows over one HTTP/2 connection.</li>
+          <li><b>Isolated Connection Pools</b>: Dedicated driver connection pool per DB type.</li>
+          <li><b>Per-Query Goroutines</b>: Every incoming query spawns an independent Go worker.</li>
+          <li><b>Row Level Security (RLS)</b>: Native Postgres RLS + Gateway filter injection for Mongo & Redis.</li>
+        </ul>
+      </div>
+
+      <div class="inspector-card">
+        <div class="inspector-card-title">📊 HTTP/1.1 REST vs DBMUX ConnectRPC</div>
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>REST (HTTP/1.1)</th>
+              <th>DBMUX (HTTP/2)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Multiplexing</td>
+              <td class="tag-bad">None (1 req/conn)</td>
+              <td class="tag-good">Full HTTP/2 Streams</td>
+            </tr>
+            <tr>
+              <td>Browser SDK</td>
+              <td>Heavy REST / Axios</td>
+              <td class="tag-good">Light ConnectRPC</td>
+            </tr>
+            <tr>
+              <td>Multi-DB Support</td>
+              <td class="tag-bad">Separate APIs</td>
+              <td class="tag-good">Unified Gateway</td>
+            </tr>
+            <tr>
+              <td>Latency Overhead</td>
+              <td>TCP Handshakes</td>
+              <td class="tag-good">Zero Handshake</td>
+            </tr>
+          </tbody>
+        </table>
+    </div>
+
+  </main>
+
+  <script>
+    // Node selection & detail inspector logic
+    const detailsMap = {
+      mysql: {
+        title: "🐬 MySQL Driver Isolation",
+        desc: "DBMUX maintains a dedicated database/sql pool with go-sql-driver/mysql. Queries sent via HTTP/2 ConnectRPC are executed against this pool with single-writer or pool limits.",
+        code: `// ConnectRPC endpoint handling MySQL\nfunc (s *MySQLService) Query(ctx, req) {\n  p := s.reg.Get(req.Msg.ProviderId)\n  return p.Query(ctx, req.Msg.Query, req.Msg.Params)\n}`
+      },
+      postgres: {
+        title: "🐘 Postgres + Native RLS Context",
+        desc: "Executes queries inside a transaction with SET LOCAL request.jwt.claim.sub = 'user_id'. Postgres automatically enforces native Row Level Security policies.",
+        code: `// RLS Context Injection\ntx.ExecContext(ctx, "SET LOCAL request.jwt.claim.sub = $1", userID)\ntx.QueryContext(ctx, query)`
+      },
+      mongo: {
+        title: "🍃 MongoDB Gateway RLS",
+        desc: "For MongoDB, DBMUX automatically injects user_id into the query filter JSON before dispatching to the official Go mongo-driver.",
+        code: `// Gateway Filter Injection\nfilter["user_id"] = currentUserID\ncursor := coll.Find(ctx, filter)`
+      },
+      redis: {
+        title: "⚡ Redis Key-Value Isolation",
+        desc: "All Key-Value calls (/dbmux.v1.KV/Get, Set, Del) are prefixed with user_<id>: to enforce client data boundaries across shared Redis/Valkey clusters.",
+        code: `// Key Namespacing\nnamespacedKey := fmt.Sprintf("user_%s:%s", userID, req.Key)\nredisClient.Get(ctx, namespacedKey)`
+      },
+      vector: {
+        title: "🎯 Vector DB (Qdrant / Pgvector)",
+        desc: "Vector similarity searches automatically merge payload filter criteria (user_id match) to prevent data leakage across AI embeddings.",
+        code: `// Vector Search Payload Filter\nfilter := &qdrant.Filter{\n  Must: []*qdrant.Condition{ Match("user_id", userID) }\n}`
+      }
+    };
+
+    const nodes = document.querySelectorAll('.db-node');
+    const detailCard = document.getElementById('detail-card');
+
+    nodes.forEach(node => {
+      node.addEventListener('click', () => {
+        nodes.forEach(n => n.classList.remove('selected'));
+        node.classList.add('selected');
+        
+        const target = node.getAttribute('data-target');
+        const info = detailsMap[target];
+        if (info) {
+          detailCard.innerHTML = `
+            <div class="inspector-card-title">${info.title}</div>
+            <div class="inspector-card-desc">${info.desc}</div>
+            <div class="code-snippet">${info.code}</div>
+          `;
+        }
+      });
+    });
+
+  </script>
+</body>
+</html>

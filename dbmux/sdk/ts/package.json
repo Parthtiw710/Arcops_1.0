@@ -1,0 +1,27 @@
+{
+  "name": "@dbmux/sdk",
+  "version": "1.0.0",
+  "description": "Polyglot DBMux TypeScript/JavaScript SDK with ConnectRPC Web frontend support and capability bitmask discovery.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "test": "npx tsx --test src/client.test.ts",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0"
+  },
+  "peerDependencies": {
+    "@connectrpc/connect": "^1.4.0",
+    "@connectrpc/connect-web": "^1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@connectrpc/connect": { "optional": true },
+    "@connectrpc/connect-web": { "optional": true }
+  },
+  "keywords": ["dbmux", "connectrpc", "connect-web", "react", "nextjs", "pubsub", "queue"],
+  "author": "DBMux Team",
+  "license": "MIT"
+}

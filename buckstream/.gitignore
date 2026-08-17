@@ -1,0 +1,22 @@
+# Go binaries and build files
+bin/
+tmp/
+buckstream
+buckstream_stripped
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment secrets
+.env
+
+# Node.js build & dependency folders for the play/demo frontend
+demo/node_modules/
+demo/dist/
+demo/.env
+demo/.env.local
+
+# OS files
+.DS_Store
+Thumbs.db

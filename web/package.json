@@ -1,0 +1,43 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000 --strictPort",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.7.0",
+    "@connectrpc/connect": "^2.1.2",
+    "@connectrpc/connect-web": "^2.1.2",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@supabase/supabase-js": "^2.112.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@xyflow/react": "^12.11.2",
+    "buckstream-client": "^1.0.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lenis": "^1.3.26",
+    "lucide-react": "^1.28.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "oxlint": "^1.75.0",
+    "shadcn": "^4.16.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  }
+}

@@ -1,0 +1,242 @@
+# =============================================================================
+# ArcOps 1.0 — Full-Stack Test Environment
+# Builds every microservice image locally from source, spins up all infra,
+# and exposes the gateway on port 8000 for e2e + load tests.
+#
+# Usage (called automatically by run.sh — do not start manually):
+#   docker compose -f test/docker-compose.test.yml up -d --wait
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # INFRA: PostgreSQL 17 + pgvector
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: arcops-test-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: arcops_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+    mem_limit: 256m
+    cpus: "0.60"
+
+  # ---------------------------------------------------------------------------
+  # INFRA: Redis 7
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: arcops-test-redis
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    mem_limit: 48m
+    cpus: "0.20"
+
+  # ---------------------------------------------------------------------------
+  # INFRA: MongoDB (for DBMux NoSQL provider)
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: arcops-test-mongo
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    mem_limit: 256m
+    cpus: "0.30"
+
+  # ---------------------------------------------------------------------------
+  # SERVICE: ArcAuth — Identity & Auth (builds from source)
+  # ---------------------------------------------------------------------------
+  arcauth:
+    build:
+      context: ../arcauth
+      dockerfile: Dockerfile
+    container_name: arcops-test-arcauth
+    ports:
+      - "8081:8081"
+    environment:
+      ARCAUTH_PORT: "8081"
+      ARCAUTH_DATABASE_URL: "file:/var/lib/arcauth/arcauth.db?cache=shared&mode=rwc"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "arcops-test-jwt-secret-do-not-use-in-prod"
+      ARCOPS_KEY_SIGNING_SECRET: "arcops-test-key-signing-secret-do-not-use"
+      EMAIL_PROVIDER: "mock"
+      SOCIAL_NO_NEW: "false"
+      FRONTEND_URL: "http://localhost:3000"
+      GATEWAY_URL: "http://gateway:8000"
+      GITHUB_CLIENT_ID: "test-github-client-id"
+      GOOGLE_CLIENT_ID: ""
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+    mem_limit: 64m
+    cpus: "0.20"
+
+  # ---------------------------------------------------------------------------
+  # SERVICE: DBMux — Multi-Tenant Database Multiplexer (builds from source)
+  # ---------------------------------------------------------------------------
+  dbmux:
+    build:
+      context: ../dbmux
+      dockerfile: Dockerfile
+    container_name: arcops-test-dbmux
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DBMUX_JWT_SECRET: "arcops-test-jwt-secret-do-not-use-in-prod"
+      DBMUX_SERVICE_ROLE_KEY: "arcops-test-service-role-key"
+      DBMUX_ANON_KEY: "arcops-test-anon-key"
+      POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/arcops_db?sslmode=disable"
+      REDIS_DSN: "redis://redis:6379"
+      MONGO_DSN: "mongodb://mongo:27017"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 8s
+    mem_limit: 128m
+    cpus: "0.30"
+
+  # ---------------------------------------------------------------------------
+  # SERVICE: BuckStream — S3 Storage Broker (builds from source)
+  # Use LOCAL provider so tests run with no cloud credentials.
+  # ---------------------------------------------------------------------------
+  buckstream:
+    build:
+      context: ../buckstream
+      dockerfile: Dockerfile
+    container_name: arcops-test-buckstream
+    ports:
+      - "8082:8080"
+    environment:
+      PORT: "8080"
+      LOCAL_S3: "true"
+      LOCAL_S3_DIR: "/var/lib/buckstream"
+      BUCKET_NAME: "arcops-test-bucket"
+      UPLOAD_TOKEN: "arcops-test-upload-token"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+    mem_limit: 64m
+    cpus: "0.20"
+
+  # ---------------------------------------------------------------------------
+  # SERVICE: Frontedge — Build Pipeline (builds from source)
+  # GitHub App features are disabled in test mode — only project CRUD is tested.
+  # ---------------------------------------------------------------------------
+  frontedge:
+    build:
+      context: ../frontedge
+      dockerfile: Dockerfile
+    container_name: arcops-test-frontedge
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: "8083"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/arcops_db?sslmode=disable"
+      CALLBACK_SECRET: "arcops-test-callback-secret"
+      GITHUB_APP_ID: ""
+      GITHUB_WEBHOOK_SECRET: ""
+      GITHUB_DISPATCH_TOKEN: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 8s
+    mem_limit: 80m
+    cpus: "0.25"
+
+  # ---------------------------------------------------------------------------
+  # SERVICE: Gateway — Central API Gateway (builds from source)
+  # ---------------------------------------------------------------------------
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    container_name: arcops-test-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      GATEWAY_PORT: "8000"
+      ARCAUTH_URL: "http://arcauth:8081"
+      DBMUX_URL: "http://dbmux:8080"
+      BUCKSTREAM_URL: "http://buckstream:8080"
+      FRONTEDGE_URL: "http://frontedge:8083"
+      ARCOPS_ADMIN_KEY: ""
+      ARCOPS_ANON_KEY: ""
+      ARCOPS_SANDBOX_KEY: "arcops-test-sandbox-signing-secret"
+      JWT_SECRET: "arcops-test-jwt-secret-do-not-use-in-prod"
+      BYODB_ENCRYPTION_KEY: "12345678901234567890123456789012"
+      RATE_LIMIT_PER_SEC: "1000"
+      RATE_BURST: "2000"
+    depends_on:
+      arcauth:
+        condition: service_healthy
+      dbmux:
+        condition: service_healthy
+      buckstream:
+        condition: service_healthy
+      frontedge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+    mem_limit: 80m
+    cpus: "0.30"
+
+  # ---------------------------------------------------------------------------
+  # TEST RUNNER: k6 — Load test (profile=load, started explicitly by run.sh)
+  # ---------------------------------------------------------------------------
+  k6:
+    image: grafana/k6:latest
+    container_name: arcops-test-k6
+    profiles: ["load"]
+    volumes:
+      - ./load_scenarios.js:/scripts/load_scenarios.js
+      - ./reports:/reports
+    command: run --out json=/reports/load_results.json /scripts/load_scenarios.js
+    environment:
+      GATEWAY_URL: "http://gateway:8000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: "0.50"

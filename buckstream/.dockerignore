@@ -1,0 +1,19 @@
+# Ignore environment configs
+.env
+env.example
+
+# Ignore local builds and temporaries
+bin/
+tmp/
+
+# Ignore local Git history
+.git
+.gitignore
+
+# Ignore the testing React frontend and JavaScript SDK
+demo/
+sdk/
+
+# Ignore Docker files themselves
+Dockerfile
+.dockerignore

@@ -1,0 +1,26 @@
+# Environment files & secrets
+.env
+.env.*
+!.env.example
+*.db
+*.key
+*.pem
+
+# Go & C/C++ compiled binaries (match exact names, not source files)
+/server
+/main
+*-server
+*-binary
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+tmp/
+
+# Node & Build artifacts
+dist/
+node_modules/
+.dev.pids
+logs_*.log
+.DS_Store

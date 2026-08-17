@@ -1,0 +1,254 @@
+# =============================================================================
+# DBMux Complete 100% Self-Contained End-to-End & Stress Test Environment
+# Total RAM Budget: ~2.5 GiB across all services (fits within 3-4 GB spare)
+# Includes: Cloud IAM Emulator (Floci), 5 Databases, DBMux, k6 & ghz
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # 1. Cloud IAM & Metadata Emulator (Floci - AWS / GCP / Azure IMDS)
+  # ---------------------------------------------------------------------------
+  floci:
+    image: floci/floci:latest
+    container_name: dbmux-floci-iam
+    environment:
+      - SERVICES=sts,iam,s3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # 2. PostgreSQL (Alpine - max_connections=40, 1.50 CPU, 256MB)
+  # ---------------------------------------------------------------------------
+  postgres-stress:
+    image: postgres:alpine
+    container_name: dbmux-pg-stress
+    environment:
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+      - POSTGRES_DB=testdb
+    command: postgres -c max_connections=40 -c shared_buffers=64MB -c work_mem=4MB
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.50"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # 3. MySQL 8.4 LTS (max_connections=40, 0.75 CPU, 512MB)
+  # ---------------------------------------------------------------------------
+  mysql-stress:
+    image: mysql:8.4
+    container_name: dbmux-mysql-stress
+    environment:
+      - MYSQL_ROOT_PASSWORD=testpass
+      - MYSQL_DATABASE=testdb
+      - MYSQL_USER=testuser
+      - MYSQL_PASSWORD=testpass
+    command: --max_connections=40 --innodb_buffer_pool_size=64M
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.75"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-ptestpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # 4. Redis / Valkey (maxmemory 16MB)
+  # ---------------------------------------------------------------------------
+  redis-stress:
+    image: valkey/valkey:latest
+    container_name: dbmux-redis-stress
+    command: valkey-server --maxmemory 16mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "1.00"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+  # ---------------------------------------------------------------------------
+  # 5. MongoDB (Latest Stable - generous memory for WiredTiger)
+  # ---------------------------------------------------------------------------
+  mongo-stress:
+    image: mongo:latest
+    container_name: dbmux-mongo-stress
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # 6. Qdrant Vector DB
+  # ---------------------------------------------------------------------------
+  qdrant-stress:
+    image: qdrant/qdrant:latest
+    container_name: dbmux-qdrant-stress
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  # ---------------------------------------------------------------------------
+  # 7. DBMux Gateway Server (scratch Docker image)
+  #    Starts ONLY after all DBs pass healthchecks
+  # ---------------------------------------------------------------------------
+  dbmux:
+    image: dbmux:test
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: dbmux-gateway-test
+    ports:
+      - "8080:8080"
+    environment:
+      - DBMUX_ANON_KEY=dbmux_anon_public_key_demo123
+      - DBMUX_SERVICE_ROLE_KEY=dbmux_service_role_secret_admin_key_demo123
+      - DBMUX_JWT_SECRET=super_secret_jwt_key_change_me_in_production
+      - SQLITE_DATA_DIR=/var/lib/dbmux/sqlite
+      - POSTGRES_DSN=postgres://testuser:testpass@postgres-stress:5432/testdb?sslmode=disable
+      - MYSQL_DSN=testuser:testpass@tcp(mysql-stress:3306)/testdb
+      - REDIS_DSN=redis://redis-stress:6379
+      - MONGO_DSN=mongodb://mongo-stress:27017
+      - SQLITE_DSN=
+      - AWS_METADATA_HOST=floci:4566
+      - GCP_METADATA_HOST=floci:4566
+      - AZURE_METADATA_HOST=floci:4566
+      - AUTH_PROVIDER=auto
+      - OTEL_EXPORTER_OTLP_ENDPOINT=jaeger-otel:4317
+      - OTEL_SERVICE_NAME=dbmux-test
+    volumes:
+      - dbmux_sqlite_data:/var/lib/dbmux/sqlite
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "2.00"
+    healthcheck:
+      test: ["CMD", "/dbmux-server", "-healthcheck"]
+      interval: 1s
+      timeout: 2s
+      retries: 3
+      start_period: 1s
+    depends_on:
+      floci:
+        condition: service_healthy
+      postgres-stress:
+        condition: service_healthy
+      mysql-stress:
+        condition: service_healthy
+      redis-stress:
+        condition: service_healthy
+      mongo-stress:
+        condition: service_healthy
+      jaeger-otel:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # 8. k6 Load Tester (run via `docker compose run`)
+  # ---------------------------------------------------------------------------
+  k6-stress:
+    image: grafana/k6:latest
+    container_name: dbmux-k6-runner
+    user: "0:0"
+    profiles: ["test"]
+    volumes:
+      - ./isolation_stress.js:/scripts/isolation_stress.js
+      - ./k6-reporter-bundle.js:/scripts/k6-reporter-bundle.js
+      - ./reports:/reports
+    command: run /scripts/isolation_stress.js
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.00"
+    depends_on:
+      dbmux:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # 9. ghz gRPC Benchmark (run via `docker compose run`)
+  # ---------------------------------------------------------------------------
+  ghz-stress:
+    build:
+      context: .
+      dockerfile: Dockerfile.ghz
+    container_name: dbmux-ghz-runner
+    profiles: ["test"]
+    volumes:
+      - ../proto/dbmux/v1/dbmux.proto:/proto/dbmux.proto
+      - ./reports:/reports
+    command: >
+      --insecure
+      --proto /proto/dbmux.proto
+      --call dbmux.v1.SQLite/Query
+      --data '{"provider_id":"test-sqlite","query":"SELECT 1"}'
+      --total 10000 --concurrency 200
+      --format html
+      --output /reports/grpc_benchmark.html
+      --metadata '{"X-Service-Role-Key":"dbmux_service_role_secret_admin_key_demo123"}'
+      dbmux:8080
+    depends_on:
+      dbmux:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # 10. OpenTelemetry Jaeger Tracing Collector & UI
+  # ---------------------------------------------------------------------------
+  jaeger-otel:
+    image: jaegertracing/all-in-one:latest
+    container_name: dbmux-jaeger-otel
+    ports:
+      - "8082:16686" # Jaeger Web UI mapped to localhost:8082
+      - "4317:4317"   # OTLP gRPC collector port
+      - "4318:4318"   # OTLP HTTP collector port
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:16686 || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+volumes:
+  dbmux_sqlite_data:
+
