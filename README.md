@@ -20,12 +20,12 @@ Each microservice in ArcOps is fully decoupled, self-contained, and has its own 
 
 | Microservice | README Link | Brief Overview |
 | :--- | :--- | :--- |
-| ⚡ **Frontedge** | [frontedge/README.md](file:///home/parth/Documents/coding_notes_vscode/open-source-forks/arcops_1.0/Arcops_1.0/frontedge/README.md) | **Universal Deployment Engine**: Run **any custom workflow** (Frontend, Backend, Microservices) on GitHub Actions with NaCl Box secret encryption & custom YAML templates (Cloudflare Pages $0 Egress, AWS, Fastly, Bunny.net, Fly.io). |
-| 🔐 **ArcAuth** | [arcauth/README.md](file:///home/parth/Documents/coding_notes_vscode/open-source-forks/arcops_1.0/Arcops_1.0/arcauth/README.md) | **Identity & Auth Microservice**: HttpOnly session security, Bearer API keys, Resend/SMTP Email OTPs, Twilio/Vonage SMS OTPs, GitHub & Google OAuth 2.0. |
-| 🗄️ **DBMux** | [dbmux/README.md](file:///home/parth/Documents/coding_notes_vscode/open-source-forks/arcops_1.0/Arcops_1.0/dbmux/README.md) | **Database Multiplexer**: Single TCP socket HTTP/2 ConnectRPC gateway for PostgreSQL, MySQL, SQLite, MongoDB, and Vector DBs with native RLS & IAM auth. |
-| 📦 **BuckStream** | [buckstream/README.md](file:///home/parth/Documents/coding_notes_vscode/open-source-forks/arcops_1.0/Arcops_1.0/buckstream/README.md) | **S3 Object Storage**: High-throughput file streaming, presigned URLs, and chunked uploads backing local disk, Backblaze B2, AWS S3, and GCS. |
-| 🌐 **Gateway** | [gateway/README.md](file:///home/parth/Documents/coding_notes_vscode/open-source-forks/arcops_1.0/Arcops_1.0/gateway/README.md) | **API Router & Reverse Proxy**: Unified entrypoint (`:8000`) managing path routing (`/api/auth`, `/api/frontedge`, `/api/dbmux`), CORS, and rate-limiting. |
-| 🎨 **Web Frontend** | [web/README.md](file:///home/parth/Documents/coding_notes_vscode/open-source-forks/arcops_1.0/Arcops_1.0/web/README.md) | **Unified Dashboard**: React 19 + TypeScript + Vite single-page application featuring Vercel-style deployment console, SQL query builder, and storage explorer. |
+| ⚡ **Frontedge** | [frontedge/README.md](frontedge/README.md) | **Universal Deployment Engine**: Run **any custom workflow** (Frontend, Backend, Microservices) on GitHub Actions with NaCl Box secret encryption & custom YAML templates (Cloudflare Pages $0 Egress, AWS, Fastly, Bunny.net, Fly.io). |
+| 🔐 **ArcAuth** | [arcauth/README.md](arcauth/README.md) | **Identity & Auth Microservice**: HttpOnly session security, Bearer API keys, Resend/SMTP Email OTPs, Twilio/Vonage SMS OTPs, GitHub & Google OAuth 2.0. |
+| 🗄️ **DBMux** | [dbmux/README.md](dbmux/README.md) | **Database Multiplexer**: Single TCP socket HTTP/2 ConnectRPC gateway for PostgreSQL, MySQL, SQLite, MongoDB, and Vector DBs with native RLS & IAM auth. |
+| 📦 **BuckStream** | [buckstream/README.md](buckstream/README.md) | **S3 Object Storage**: High-throughput file streaming, presigned URLs, and chunked uploads backing local disk, Backblaze B2, AWS S3, and GCS. |
+| 🌐 **Gateway** | [gateway/README.md](gateway/README.md) | **API Router & Reverse Proxy**: Unified entrypoint (`:8000`) managing path routing (`/api/auth`, `/api/frontedge`, `/api/dbmux`), CORS, and rate-limiting. |
+| 🎨 **Web Frontend** | [web/README.md](web/README.md) | **Unified Dashboard**: React 19 + TypeScript + Vite single-page application featuring Vercel-style deployment console, SQL query builder, and storage explorer. |
 
 ---
 

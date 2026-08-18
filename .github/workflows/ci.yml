@@ -4,8 +4,48 @@ on:
   push:
     branches: [ main, master, develop ]
     tags: [ 'v*' ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
+      - '**.webp'
+      - '**.ico'
+      - '**.mp4'
+      - '**.webm'
+      - '**.mkv'
+      - '**.mov'
+      - '**.avi'
+      - '**.pdf'
+      - '**.doc'
+      - '**.docx'
+      - 'LICENSE'
+      - 'docs/**'
   pull_request:
     branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
+      - '**.webp'
+      - '**.ico'
+      - '**.mp4'
+      - '**.webm'
+      - '**.mkv'
+      - '**.mov'
+      - '**.avi'
+      - '**.pdf'
+      - '**.doc'
+      - '**.docx'
+      - 'LICENSE'
+      - 'docs/**'
 
 permissions:
   contents: read
